@@ -1,0 +1,64 @@
+{
+  "name": "zod-timezone-validation",
+  "version": "1.0.0",
+  "description": "Zod schemas for validating timezone strings, including non-canonical names.",
+  "author": "Roman Kozodoi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Roman86/zod-timezone-validation.git"
+  },
+  "homepage": "https://github.com/Roman86/zod-timezone-validation#readme",
+  "bugs": {
+    "url": "https://github.com/Roman86/zod-timezone-validation/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "git diff --quiet && git diff --staged --quiet && npm run lint && npm run build",
+    "build": "tsup src/index.ts --format cjs,esm --dts --minify --clean",
+    "test": "jest",
+    "lint": "biome lint ./src",
+    "format": "biome format --write ./src"
+  },
+  "keywords": [
+    "IANA timezone",
+    "IANA timezone database",
+    "tz database",
+    "Zod schema",
+    "timezone validation",
+    "canonical timezone names",
+    "non-canonical timezone names",
+    "data validation",
+    "JavaScript",
+    "TypeScript",
+    "date-time handling"
+  ],
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "latest",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.3",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.0.0"
+  }
+}

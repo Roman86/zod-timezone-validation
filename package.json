@@ -1,6 +1,6 @@
 {
   "name": "zod-timezone-validation",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Zod schemas for validating timezone strings, including non-canonical names.",
   "author": "Roman Kozodoi",
   "license": "MIT",

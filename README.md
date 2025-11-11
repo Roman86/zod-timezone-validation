@@ -29,7 +29,7 @@ Using branded types provides extra type safety, ensuring that you don't accident
 
 ### ❤️ Enjoying this package? Consider buying me a coffee as a token of appreciation!
 
-[<img src="src/bmc_qr.png" alt="Buy Me A Coffee" width="120" height="120">](https://www.buymeacoffee.com/romanjs)
+[<img src="https://raw.githubusercontent.com/Roman86/assets/main/img/bmc_qr_240.png" alt="Buy Me A Coffee" width="120" height="120">](https://www.buymeacoffee.com/romanjs)
 
 
 ## Installation

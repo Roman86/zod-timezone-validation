@@ -1,15 +1,13 @@
 import type z from 'zod';
 import { makeTimeZoneValidator } from './makeTimeZoneValidator';
 
-export const zIANACanonicalTimezone = makeTimeZoneValidator(
-  'changeToCanonical',
-).brand('IANACanonicalTimezone');
-export const zIANAStrictlyCanonicalTimezone = makeTimeZoneValidator(
-  'assumeInvalid',
-).brand('IANACanonicalTimezone');
+export const CoercedCanonicalTimezoneSchema =
+  makeTimeZoneValidator('changeToCanonical').brand('CanonicalTimezone');
+export const CanonicalTimezoneSchema =
+  makeTimeZoneValidator('assumeInvalid').brand('CanonicalTimezone');
 
-export const zIANATimezone =
-  makeTimeZoneValidator('keepNonCanonical').brand('IANATimezone');
+export const TimezoneSchema =
+  makeTimeZoneValidator('keepNonCanonical').brand('Timezone');
 
-export type IANACanonicalTimezone = z.infer<typeof zIANACanonicalTimezone>;
-export type IANATimezone = z.infer<typeof zIANATimezone>;
+export type CanonicalTimezone = z.infer<typeof CanonicalTimezoneSchema>;
+export type Timezone = z.infer<typeof TimezoneSchema>;

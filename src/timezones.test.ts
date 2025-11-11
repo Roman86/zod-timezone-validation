@@ -1,7 +1,7 @@
 import {
-  zIANACanonicalTimezone,
-  zIANAStrictlyCanonicalTimezone,
-  zIANATimezone,
+  CanonicalTimezoneSchema,
+  CoercedCanonicalTimezoneSchema,
+  TimezoneSchema,
 } from './index';
 
 describe('timezones test', () => {
@@ -11,29 +11,29 @@ describe('timezones test', () => {
   const nonsense = 'nonsense';
 
   test('non-canonical (flexible)', () => {
-    expect(zIANATimezone.parse(nonCanonicalAlias)).toBe(nonCanonicalAlias);
-    expect(zIANATimezone.parse(nonCanonicalAliasLowerCase)).toBe(
+    expect(TimezoneSchema.parse(nonCanonicalAlias)).toBe(nonCanonicalAlias);
+    expect(TimezoneSchema.parse(nonCanonicalAliasLowerCase)).toBe(
       nonCanonicalAliasLowerCase,
     );
-    expect(zIANATimezone.parse(canonicalTZ)).toBe(canonicalTZ);
-    expect(() => zIANATimezone.parse(nonsense)).toThrow();
+    expect(TimezoneSchema.parse(canonicalTZ)).toBe(canonicalTZ);
+    expect(() => TimezoneSchema.parse(nonsense)).toThrow();
   });
   test('convert to canonical', () => {
-    expect(zIANACanonicalTimezone.parse(nonCanonicalAliasLowerCase)).toBe(
+    expect(
+      CoercedCanonicalTimezoneSchema.parse(nonCanonicalAliasLowerCase),
+    ).toBe(canonicalTZ);
+    expect(CoercedCanonicalTimezoneSchema.parse(nonCanonicalAlias)).toBe(
       canonicalTZ,
     );
-    expect(zIANACanonicalTimezone.parse(nonCanonicalAlias)).toBe(canonicalTZ);
-    expect(zIANACanonicalTimezone.parse(canonicalTZ)).toBe(canonicalTZ);
-    expect(() => zIANACanonicalTimezone.parse(nonsense)).toThrow();
+    expect(CoercedCanonicalTimezoneSchema.parse(canonicalTZ)).toBe(canonicalTZ);
+    expect(() => CoercedCanonicalTimezoneSchema.parse(nonsense)).toThrow();
   });
   test('strictly canonical', () => {
-    expect(zIANAStrictlyCanonicalTimezone.parse(canonicalTZ)).toBe(canonicalTZ);
+    expect(CanonicalTimezoneSchema.parse(canonicalTZ)).toBe(canonicalTZ);
+    expect(() => CanonicalTimezoneSchema.parse(nonCanonicalAlias)).toThrow();
     expect(() =>
-      zIANAStrictlyCanonicalTimezone.parse(nonCanonicalAlias),
+      CanonicalTimezoneSchema.parse(nonCanonicalAliasLowerCase),
     ).toThrow();
-    expect(() =>
-      zIANAStrictlyCanonicalTimezone.parse(nonCanonicalAliasLowerCase),
-    ).toThrow();
-    expect(() => zIANAStrictlyCanonicalTimezone.parse(nonsense)).toThrow();
+    expect(() => CanonicalTimezoneSchema.parse(nonsense)).toThrow();
   });
 });

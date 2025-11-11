@@ -19,9 +19,9 @@ This library leverages the native `Intl` API, ensuring that timezone validation 
 
 ### Brief Overview of Exports
 
--   `CoercedCanonicalTimezoneSchema`: A Zod schema that validates and transforms to a canonical timezone name. Infers a branded type `CanonicalTimezone`.
--   `CanonicalTimezoneSchema`: A Zod schema that validates for a strictly canonical timezone name. Infers a branded type `CanonicalTimezone`.
--   `TimezoneSchema`: A Zod schema that validates for any valid timezone name. Infers a branded type `Timezone`.
+-   `CoercedCanonicalTimezoneSchema`: Validates a timezone and **transforms** it to its canonical form (e.g., `US/Eastern` becomes `America/New_York`). Infers a branded type `CanonicalTimezone`.
+-   `CanonicalTimezoneSchema`: Ensures a timezone is **strictly** in its canonical form. Rejects valid but non-canonical names. Infers a branded type `CanonicalTimezone`.
+-   `TimezoneSchema`: Validates any valid timezone, **allowing both canonical and non-canonical names** without transformation. Infers a branded type `Timezone`.
 -   `CanonicalTimezone`: The branded `string` type for a canonical timezone.
 -   `Timezone`: The branded `string` type for any valid timezone.
 

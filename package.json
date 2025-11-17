@@ -31,7 +31,7 @@
     "access": "public"
   },
   "scripts": {
-    "prepublishOnly": "git diff --quiet && git diff --staged --quiet && npm run lint && npm run build",
+    "prepublishOnly": "git diff --quiet && git diff --staged --quiet && npm run lint && npm run test && npm run build",
     "build": "tsup src/index.ts --format cjs,esm --dts --minify --clean",
     "test": "jest",
     "lint": "biome lint ./src",

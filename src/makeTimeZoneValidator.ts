@@ -39,7 +39,7 @@ export const makeTimeZoneValidator = (
     return z.string().transform((v, ctx) => {
       const canonical = tzAdapter(v, true);
       if (canonical == null) {
-        ctx.addIssue({
+        ctx.issues.push({
           code: 'invalid_value',
           message: `Invalid time zone name "${v}". ${errorSuffix}`,
           values: [v],

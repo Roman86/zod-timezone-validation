@@ -1,6 +1,19 @@
 import type z from 'zod';
 import { makeTimeZoneValidator } from './makeTimeZoneValidator';
 
+export {
+  type CanonicalMode,
+  type ConfigureOptions,
+  configureTimezoneSchema,
+  resetConfig,
+  type TimezoneMapping,
+} from './config';
+
+export {
+  getCanonicalNamesLowerCase,
+  ianaCanonicalMappingsLowerKeys,
+} from './ianaCanonical';
+
 export const CoercedCanonicalTimezoneSchema =
   makeTimeZoneValidator('changeToCanonical').brand('CanonicalTimezone');
 export const CanonicalTimezoneSchema =

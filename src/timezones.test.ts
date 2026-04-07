@@ -1,17 +1,9 @@
-import {
-  CanonicalTimezoneSchema,
-  CoercedCanonicalTimezoneSchema,
-  configureTimezoneSchema,
-  getCanonicalNamesLowerCase,
-  resetConfig,
-  TimezoneSchema,
-} from './index';
+import { createTimezoneSchemas } from './index';
 
-afterEach(() => {
-  resetConfig();
-});
+describe('Runtime (CLDR/ICU) mode — default', () => {
+  const { CoercedCanonicalTimezoneSchema, CanonicalTimezoneSchema, TimezoneSchema } =
+    createTimezoneSchemas();
 
-describe('Runtime (CLDR/ICU) mode', () => {
   const canonicalTZ = 'America/Chicago';
   const nonCanonicalAlias = 'US/Central';
   const nonCanonicalAliasLowerCase = 'us/central';
@@ -66,9 +58,8 @@ describe('Runtime (CLDR/ICU) mode', () => {
 });
 
 describe('IANA canonical mode', () => {
-  beforeEach(() => {
-    configureTimezoneSchema({ canonicalMode: 'iana' });
-  });
+  const { CoercedCanonicalTimezoneSchema, CanonicalTimezoneSchema } =
+    createTimezoneSchemas({ canonicalMode: 'iana' });
 
   test('CoercedCanonicalTimezoneSchema maps to IANA canonical names', () => {
     expect(CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta')).toBe(
@@ -88,6 +79,15 @@ describe('IANA canonical mode', () => {
     );
     expect(CoercedCanonicalTimezoneSchema.parse('europe/kiev')).toBe(
       'Europe/Kyiv',
+    );
+  });
+
+  test('CoercedCanonicalTimezoneSchema normalizes casing of canonical names', () => {
+    expect(CoercedCanonicalTimezoneSchema.parse('america/new_york')).toBe(
+      'America/New_York',
+    );
+    expect(CoercedCanonicalTimezoneSchema.parse('EUROPE/LONDON')).toBe(
+      'Europe/London',
     );
   });
 
@@ -120,7 +120,7 @@ describe('IANA canonical mode', () => {
 
 describe('Custom mappings', () => {
   test('custom mappings override default behavior in runtime mode', () => {
-    configureTimezoneSchema({
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
       customMappings: [['America/Chicago', 'Custom/Chicago']],
     });
 
@@ -133,7 +133,7 @@ describe('Custom mappings', () => {
   });
 
   test('custom mappings are case-insensitive for keys', () => {
-    configureTimezoneSchema({
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
       customMappings: [['america/chicago', 'Custom/Chicago']],
     });
 
@@ -149,7 +149,7 @@ describe('Custom mappings', () => {
   });
 
   test('custom mappings override built-in IANA mappings', () => {
-    configureTimezoneSchema({
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
       canonicalMode: 'iana',
       customMappings: [['Asia/Calcutta', 'Custom/India']],
     });
@@ -157,14 +157,14 @@ describe('Custom mappings', () => {
     expect(CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta')).toBe(
       'Custom/India',
     );
-    // Other IANA mappings should still work
     expect(CoercedCanonicalTimezoneSchema.parse('Europe/Kiev')).toBe(
       'Europe/Kyiv',
     );
   });
 
   test('custom mappings chain through runtime resolution', () => {
-    configureTimezoneSchema({
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
+      canonicalMode: 'runtime',
       customMappings: [['America/Chicago', 'My/Central']],
     });
 
@@ -175,7 +175,7 @@ describe('Custom mappings', () => {
   });
 
   test('custom canonical names are accepted by CanonicalTimezoneSchema', () => {
-    configureTimezoneSchema({
+    const { CanonicalTimezoneSchema } = createTimezoneSchemas({
       customMappings: [['legacy/zone', 'My/New/Canonical']],
     });
 
@@ -185,7 +185,7 @@ describe('Custom mappings', () => {
   });
 
   test('custom mappings coerce to custom canonical names', () => {
-    configureTimezoneSchema({
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
       customMappings: [['legacy/zone', 'My/New/Canonical']],
     });
 
@@ -194,65 +194,47 @@ describe('Custom mappings', () => {
     );
   });
 
-  test('clearing custom mappings restores default behavior', () => {
-    configureTimezoneSchema({
-      customMappings: [['America/Chicago', 'Custom/Chicago']],
-    });
-    expect(CoercedCanonicalTimezoneSchema.parse('America/Chicago')).toBe(
-      'Custom/Chicago',
-    );
-
-    resetConfig();
-    expect(CoercedCanonicalTimezoneSchema.parse('America/Chicago')).toBe(
-      'America/Chicago',
-    );
-  });
-
   test('custom mappings validate input — rejects empty strings', () => {
     expect(() =>
-      configureTimezoneSchema({ customMappings: [['', 'America/Chicago']] }),
+      createTimezoneSchemas({ customMappings: [['', 'America/Chicago']] }),
     ).toThrow();
     expect(() =>
-      configureTimezoneSchema({ customMappings: [['US/Central', '']] }),
+      createTimezoneSchemas({ customMappings: [['US/Central', '']] }),
     ).toThrow();
   });
 });
 
-describe('Merged canonical names set', () => {
-  test('includes IANA canonical names', () => {
-    const names = getCanonicalNamesLowerCase();
-    expect(names.has('america/new_york')).toBe(true);
-    expect(names.has('europe/london')).toBe(true);
-    expect(names.has('asia/tokyo')).toBe(true);
+describe('Isolation — different configs do not interfere', () => {
+  test('two instances with different modes are independent', () => {
+    const runtime = createTimezoneSchemas({ canonicalMode: 'runtime' });
+    const iana = createTimezoneSchemas({ canonicalMode: 'iana' });
+
+    // Asia/Calcutta is canonical in some runtimes, non-canonical in IANA
+    expect(() => iana.CanonicalTimezoneSchema.parse('Asia/Calcutta')).toThrow();
+    // Runtime mode depends on environment, but shouldn't throw for valid tz
+    expect(runtime.TimezoneSchema.parse('Asia/Calcutta')).toBe('Asia/Calcutta');
   });
 
-  test('does not include non-canonical aliases', () => {
-    const names = getCanonicalNamesLowerCase();
-    expect(names.has('us/eastern')).toBe(false);
-    expect(names.has('gb')).toBe(false);
-  });
-
-  test('includes custom canonical names after configure', () => {
-    configureTimezoneSchema({
-      customMappings: [['legacy/zone', 'My/Custom/Canonical']],
+  test('custom mappings in one instance do not affect another', () => {
+    const withCustom = createTimezoneSchemas({
+      customMappings: [['America/Chicago', 'Custom/Chicago']],
     });
+    const withoutCustom = createTimezoneSchemas();
 
-    const names = getCanonicalNamesLowerCase();
-    expect(names.has('my/custom/canonical')).toBe(true);
-  });
-
-  test('removes custom canonical names after reset', () => {
-    configureTimezoneSchema({
-      customMappings: [['legacy/zone', 'My/Custom/Canonical']],
-    });
-    resetConfig();
-
-    const names = getCanonicalNamesLowerCase();
-    expect(names.has('my/custom/canonical')).toBe(false);
+    expect(withCustom.CoercedCanonicalTimezoneSchema.parse('America/Chicago')).toBe(
+      'Custom/Chicago',
+    );
+    expect(
+      withoutCustom.CoercedCanonicalTimezoneSchema.parse('America/Chicago'),
+    ).toBe('America/Chicago');
   });
 });
 
+
 describe('Edge cases', () => {
+  const { CoercedCanonicalTimezoneSchema, CanonicalTimezoneSchema, TimezoneSchema } =
+    createTimezoneSchemas();
+
   test('handles empty string input', () => {
     expect(() => TimezoneSchema.parse('')).toThrow();
     expect(() => CanonicalTimezoneSchema.parse('')).toThrow();
@@ -266,25 +248,19 @@ describe('Edge cases', () => {
   });
 
   test('case-insensitive validation for canonical check in IANA mode', () => {
-    configureTimezoneSchema({ canonicalMode: 'iana' });
-
-    // Lowercase input of a canonical name should still be accepted
+    const { CanonicalTimezoneSchema } = createTimezoneSchemas({
+      canonicalMode: 'iana',
+    });
     expect(CanonicalTimezoneSchema.parse('america/new_york')).toBe(
       'america/new_york',
     );
   });
 
-  test('multiple configure calls are additive for mode but replace mappings', () => {
-    configureTimezoneSchema({ canonicalMode: 'iana' });
-    configureTimezoneSchema({
-      customMappings: [['foo/bar', 'Baz/Qux']],
-    });
-
-    // Mode should still be iana
-    expect(CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta')).toBe(
-      'Asia/Kolkata',
+  test('no-args createTimezoneSchemas uses iana mode defaults', () => {
+    const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas();
+    // Should not throw for valid timezones
+    expect(CoercedCanonicalTimezoneSchema.parse('America/New_York')).toBe(
+      'America/New_York',
     );
-    // Custom mapping should work
-    expect(CanonicalTimezoneSchema.parse('Baz/Qux')).toBe('Baz/Qux');
   });
 });

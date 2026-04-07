@@ -1,26 +1,71 @@
 import type z from 'zod';
+import {
+  type TimezoneSchemaOptions,
+  resolveConfig,
+} from './config';
+import { buildCanonicalNamesMap } from './ianaCanonical';
 import { makeTimeZoneValidator } from './makeTimeZoneValidator';
 
-export {
-  type CanonicalMode,
-  type ConfigureOptions,
-  configureTimezoneSchema,
-  resetConfig,
-  type TimezoneMapping,
+export type {
+  CanonicalMode,
+  TimezoneMapping,
+  TimezoneSchemaOptions,
 } from './config';
 
-export {
-  getCanonicalNamesLowerCase,
-  ianaCanonicalMappingsLowerKeys,
-} from './ianaCanonical';
 
-export const CoercedCanonicalTimezoneSchema =
-  makeTimeZoneValidator('changeToCanonical').brand('CanonicalTimezone');
-export const CanonicalTimezoneSchema =
-  makeTimeZoneValidator('assumeInvalid').brand('CanonicalTimezone');
+/**
+ * Creates a set of timezone validation schemas with the given configuration.
+ *
+ * @example
+ * ```typescript
+ * import { createTimezoneSchemas } from 'zod-timezone-validation';
+ *
+ * // Default: IANA mode, no custom mappings
+ * const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas();
+ *
+ * // Runtime mode with custom mappings
+ * const { CanonicalTimezoneSchema } = createTimezoneSchemas({
+ *   canonicalMode: 'runtime',
+ *   customMappings: [
+ *     ['Asia/Calcutta', 'Asia/Kolkata'],
+ *     ['legacy/zone', 'My/New/Canonical'],
+ *   ],
+ * });
+ * ```
+ */
+export function createTimezoneSchemas(
+  options?: TimezoneSchemaOptions,
+) {
+  const config = resolveConfig(options);
+  const canonicalNames = buildCanonicalNamesMap(config);
 
-export const TimezoneSchema =
-  makeTimeZoneValidator('keepNonCanonical').brand('Timezone');
+  return {
+    /** Validates and transforms to canonical form (e.g. `US/Eastern` → `America/New_York`). */
+    CoercedCanonicalTimezoneSchema: makeTimeZoneValidator(
+      'changeToCanonical',
+      config,
+      canonicalNames,
+    ).brand('CanonicalTimezone'),
+    /** Accepts only strictly canonical names. Rejects valid but non-canonical aliases. */
+    CanonicalTimezoneSchema: makeTimeZoneValidator(
+      'assumeInvalid',
+      config,
+      canonicalNames,
+    ).brand('CanonicalTimezone'),
+    /** Accepts any valid timezone — canonical or non-canonical — without transformation. */
+    TimezoneSchema: makeTimeZoneValidator(
+      'keepNonCanonical',
+      config,
+      canonicalNames,
+    ).brand('Timezone'),
+  };
+}
 
-export type CanonicalTimezone = z.infer<typeof CanonicalTimezoneSchema>;
-export type Timezone = z.infer<typeof TimezoneSchema>;
+/** The return type of `createTimezoneSchemas`. */
+export type TimezoneSchemas = ReturnType<typeof createTimezoneSchemas>;
+
+/** Branded string type for a canonical timezone (inferred from schema output). */
+export type CanonicalTimezone = z.infer<TimezoneSchemas['CoercedCanonicalTimezoneSchema']>;
+
+/** Branded string type for any valid timezone (inferred from schema output). */
+export type Timezone = z.infer<TimezoneSchemas['TimezoneSchema']>;

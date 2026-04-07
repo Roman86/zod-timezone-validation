@@ -3,13 +3,12 @@ import { z } from 'zod';
 /**
  * Defines how "canonical" timezone names are determined.
  *
- * - `'runtime'` (default): Uses the runtime's `Intl` implementation to determine canonical names.
- *   This means results may vary between environments (e.g., Chromium considers `Asia/Calcutta`
- *   canonical, while Node.js and Firefox use `Asia/Kolkata`).
+ * - `'iana'` (default): Uses a strict IANA-compliant list where only the latest canonical names are accepted.
+ *   Provides consistent behavior across all environments.
  *
- * - `'iana'`: Uses a strict IANA-compliant list where only the latest canonical names are accepted.
- *   This provides consistent behavior across all environments but requires maintaining a list
- *   of known canonical mappings.
+ * - `'runtime'`: Uses the runtime's `Intl` implementation to determine canonical names.
+ *   Results may vary between environments (e.g., Chromium considers `Asia/Calcutta`
+ *   canonical, while Node.js and Firefox use `Asia/Kolkata`).
  */
 export type CanonicalMode = 'runtime' | 'iana';
 
@@ -23,149 +22,59 @@ export type TimezoneMapping = readonly [
   canonical: string,
 ];
 
-/**
- * Zod schema for validating a single timezone mapping tuple.
- */
 const TimezoneMappingSchema = z.tuple([
   z.string().min(1, 'Non-canonical timezone name cannot be empty'),
   z.string().min(1, 'Canonical timezone name cannot be empty'),
 ]);
 
-/**
- * Zod schema for validating an array of timezone mapping tuples.
- */
 const CustomMappingsSchema = z.array(
   TimezoneMappingSchema.transform(([k, v]) => [k.toLowerCase(), v] as const),
 );
 
-interface Config {
-  canonicalMode: CanonicalMode;
-  customMappingsLowerKeys: Map<string, string>;
+export interface TimezoneSchemaOptions {
   /**
-   * Set of custom canonical names (lowercase) introduced via customMappings values.
-   * These are names that don't exist in the built-in canonical sets.
-   */
-  customCanonicalNamesLowerCase: Set<string>;
-}
-
-const defaultConfig = (): Config => ({
-  canonicalMode: 'runtime',
-  customMappingsLowerKeys: new Map(),
-  customCanonicalNamesLowerCase: new Set(),
-});
-
-let config: Config = defaultConfig();
-
-const onChangeListeners: Array<() => void> = [];
-
-export interface ConfigureOptions {
-  /**
-   * Determines how canonical timezone names are resolved:
-   * - `'runtime'` (default): Uses the runtime's `Intl` implementation. Results may vary between
-   *   environments (e.g., Chromium vs Node.js may disagree on which name is canonical).
-   * - `'iana'`: Uses strict IANA-compliant canonical names. Provides consistent behavior
-   *   across all environments.
+   * Determines how canonical timezone names are resolved.
+   * @default 'iana'
    */
   canonicalMode?: CanonicalMode;
   /**
    * Custom timezone mappings that override built-in mappings.
    * Array of tuples: [nonCanonicalName, canonicalName]
    *
-   * - Keys (nonCanonicalName) are matched case-insensitively.
-   * - Values (canonicalName) are treated as canonical names. If the value doesn't exist
-   *   in the built-in canonical sets, it becomes a new valid canonical name.
-   *
-   * @example
-   * ```TypeScript
-   * configureTimezoneSchema({
-   *   customMappings: [
-   *     ['My/Custom/Zone', 'America/New_York'],  // Map to existing canonical
-   *     ['Asia/Calcutta', 'Asia/Kolkata'],       // Force specific mapping
-   *     ['legacy/zone', 'My/New/Canonical'],     // Introduce new canonical name
-   *   ]
-   * });
-   * ```
+   * Keys are matched case-insensitively.
+   * Values are treated as canonical names — if the value doesn't exist
+   * in the built-in canonical sets, it becomes a new valid canonical name.
    */
   customMappings?: TimezoneMapping[];
 }
 
 /**
- * Configures the global behavior of timezone validation.
- *
- * @param options - Configuration options
- *
- * @example
- * ```typescript
- * import { configureTimezoneSchema } from 'zod-timezone-validation';
- *
- * // Use strict IANA canonical names (consistent across environments)
- * configureTimezoneSchema({ canonicalMode: 'iana' });
- *
- * // Use runtime's Intl implementation (default, may vary by environment)
- * configureTimezoneSchema({ canonicalMode: 'runtime' });
- *
- * // Add custom mappings (array of tuples, case-insensitive keys)
- * configureTimezoneSchema({
- *   customMappings: [
- *     ['Asia/Calcutta', 'Asia/Kolkata'],
- *     ['my/legacy/zone', 'America/New_York'],
- *   ]
- * });
- * ```
+ * Immutable resolved configuration. Created once per factory call.
  */
-export function configureTimezoneSchema(options: ConfigureOptions): void {
-  if (options.canonicalMode) {
-    config.canonicalMode = options.canonicalMode;
+export interface ResolvedConfig {
+  readonly canonicalMode: CanonicalMode;
+  readonly customMappingsLowerKeys: ReadonlyMap<string, string>;
+  readonly customCanonicalNamesLowerCase: ReadonlySet<string>;
+}
+
+export function resolveConfig(options?: TimezoneSchemaOptions): ResolvedConfig {
+  const canonicalMode = options?.canonicalMode ?? 'iana';
+
+  if (!options?.customMappings?.length) {
+    return {
+      canonicalMode,
+      customMappingsLowerKeys: new Map(),
+      customCanonicalNamesLowerCase: new Set(),
+    };
   }
-  if (options.customMappings) {
-    const parsed = CustomMappingsSchema.parse(options.customMappings);
 
-    config.customMappingsLowerKeys = new Map(parsed);
+  const parsed = CustomMappingsSchema.parse(options.customMappings);
 
-    config.customCanonicalNamesLowerCase = new Set(
+  return {
+    canonicalMode,
+    customMappingsLowerKeys: new Map(parsed),
+    customCanonicalNamesLowerCase: new Set(
       parsed.map(([, canonical]) => canonical.toLowerCase()),
-    );
-  }
-  for (const listener of onChangeListeners) {
-    listener();
-  }
-}
-
-/**
- * Resets configuration to defaults. Useful for testing.
- */
-export function resetConfig(): void {
-  config = defaultConfig();
-  for (const listener of onChangeListeners) {
-    listener();
-  }
-}
-
-/**
- * Register a callback to be notified when config changes.
- */
-export function onConfigChange(listener: () => void): void {
-  onChangeListeners.push(listener);
-}
-
-/**
- * Returns the current configuration.
- */
-export function getConfig(): Readonly<Config> {
-  return config;
-}
-
-/**
- * Looks up a timezone in custom mappings (case-insensitive).
- * Returns the canonical name if found, undefined otherwise.
- */
-export function findCustomMapping(timezone: string): string | undefined {
-  return config.customMappingsLowerKeys.get(timezone.toLowerCase());
-}
-
-/**
- * Checks if a timezone name is a custom canonical name (case-insensitive).
- */
-export function isCustomCanonical(timezone: string): boolean {
-  return config.customCanonicalNamesLowerCase.has(timezone.toLowerCase());
+    ),
+  };
 }

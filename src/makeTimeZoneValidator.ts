@@ -1,19 +1,11 @@
 import { type ZodType, z } from 'zod';
-import { findCustomMapping, getConfig, isCustomCanonical } from './config';
+import type { ResolvedConfig } from './config';
 import {
-  getCanonicalNamesLowerCase,
   getIanaCanonicalName,
-  ianaCanonicalMappingsLowerKeys,
+  getIanaMappings,
+  getRuntimeCanonicalSet,
 } from './ianaCanonical';
 
-const runtimeCanonicalTzNamesLowerCaseSet = new Set(
-  Intl.supportedValuesOf('timeZone').map((tz) => tz.toLowerCase()),
-);
-
-/**
- * Resolves a timezone via Intl. Not memoized — config can change at any time,
- * and Intl calls are cheap enough for a validation library.
- */
 function resolveViaRuntime(tz: string): string | null {
   try {
     const formatter = Intl.DateTimeFormat(undefined, { timeZone: tz });
@@ -23,23 +15,27 @@ function resolveViaRuntime(tz: string): string | null {
   }
 }
 
-/**
- * Gets the canonical timezone name based on the current configuration mode.
- * Custom mappings from configuration take precedence.
- */
-function getCanonicalName(tz: string): string | null {
-  const customMapped = findCustomMapping(tz);
+function getCanonicalName(
+  tz: string,
+  config: ResolvedConfig,
+  canonicalNames: ReadonlyMap<string, string>,
+): string | null {
+  const lowerTz = tz.toLowerCase();
+  const customMapped = config.customMappingsLowerKeys.get(lowerTz);
   if (customMapped) {
     return customMapped;
   }
-  if (getConfig().canonicalMode === 'iana') {
-    return getIanaCanonicalName(tz);
+
+  if (config.canonicalMode === 'iana') {
+    return getIanaCanonicalName(lowerTz, config, canonicalNames);
   }
 
   // runtime mode
   const resolved = resolveViaRuntime(tz);
   if (resolved) {
-    const customResolvedMapped = findCustomMapping(resolved);
+    const customResolvedMapped = config.customMappingsLowerKeys.get(
+      resolved.toLowerCase(),
+    );
     if (customResolvedMapped) {
       return customResolvedMapped;
     }
@@ -47,31 +43,28 @@ function getCanonicalName(tz: string): string | null {
   return resolved;
 }
 
-/**
- * Checks if a timezone is strictly canonical based on the current configuration mode.
- */
-function isStrictlyCanonical(tz: string): boolean {
+function isStrictlyCanonical(
+  tz: string,
+  config: ResolvedConfig,
+  canonicalNames: ReadonlyMap<string, string>,
+): boolean {
   const lowerTz = tz.toLowerCase();
-  const { canonicalMode } = getConfig();
 
-  if (isCustomCanonical(tz)) {
+  if (config.customCanonicalNamesLowerCase.has(lowerTz)) {
     return true;
   }
 
-  if (canonicalMode === 'iana') {
+  if (config.canonicalMode === 'iana') {
     return (
-      getCanonicalNamesLowerCase().has(lowerTz) &&
-      !ianaCanonicalMappingsLowerKeys.has(lowerTz)
+      canonicalNames.has(lowerTz) &&
+      !getIanaMappings().has(lowerTz)
     );
   }
 
   // runtime mode
-  return runtimeCanonicalTzNamesLowerCaseSet.has(lowerTz);
+  return getRuntimeCanonicalSet().has(lowerTz);
 }
 
-/**
- * Checks if a timezone is valid (canonical or non-canonical).
- */
 function isValidTimezone(tz: string): boolean {
   return resolveViaRuntime(tz) != null;
 }
@@ -83,15 +76,20 @@ export const makeTimeZoneValidator = (
     | 'changeToCanonical'
     | 'keepNonCanonical'
     | 'assumeInvalid',
+  config: ResolvedConfig,
+  canonicalNames: ReadonlyMap<string, string>,
 ): ZodType<string> => {
   if (nonCanonicalStrategy === 'assumeInvalid') {
-    return z.string().refine((val) => isStrictlyCanonical(val), {
-      error: (e) =>
-        `Non-canonical time zone name "${String(e.input)}". ${errorSuffix}`,
-    });
+    return z.string().refine(
+      (val) => isStrictlyCanonical(val, config, canonicalNames),
+      {
+        error: (e) =>
+          `Non-canonical time zone name "${String(e.input)}". ${errorSuffix}`,
+      },
+    );
   } else if (nonCanonicalStrategy === 'changeToCanonical') {
     return z.string().transform((v, ctx) => {
-      const canonical = getCanonicalName(v);
+      const canonical = getCanonicalName(v, config, canonicalNames);
       if (canonical == null) {
         ctx.issues.push({
           code: 'invalid_value',
@@ -105,7 +103,7 @@ export const makeTimeZoneValidator = (
     });
   }
 
-  // otherwise keepNonCanonical
+  // keepNonCanonical
   return z.string().refine((val) => isValidTimezone(val), {
     error: (e) =>
       `Invalid time zone name "${String(e.input)}" (refer to IANA time zone database)`,

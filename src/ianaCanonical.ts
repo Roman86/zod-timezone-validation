@@ -1,203 +1,237 @@
-import { findCustomMapping, getConfig, onConfigChange } from './config';
+import type { ResolvedConfig } from './config';
+
+const ianaCanonicalEntries: readonly (readonly [string, string])[] = [
+  // Asia
+  ['asia/calcutta', 'Asia/Kolkata'],
+  ['asia/saigon', 'Asia/Ho_Chi_Minh'],
+  ['asia/katmandu', 'Asia/Kathmandu'],
+  ['asia/rangoon', 'Asia/Yangon'],
+  ['asia/chongqing', 'Asia/Shanghai'],
+  ['asia/chungking', 'Asia/Shanghai'],
+  ['asia/harbin', 'Asia/Shanghai'],
+  ['asia/kashgar', 'Asia/Urumqi'],
+  ['asia/dacca', 'Asia/Dhaka'],
+  ['asia/thimbu', 'Asia/Thimphu'],
+  ['asia/ujung_pandang', 'Asia/Makassar'],
+  ['asia/ulan_bator', 'Asia/Ulaanbaatar'],
+  ['asia/macao', 'Asia/Macau'],
+  ['asia/tel_aviv', 'Asia/Jerusalem'],
+  ['asia/ashkhabad', 'Asia/Ashgabat'],
+
+  // Europe
+  ['europe/kiev', 'Europe/Kyiv'],
+  ['europe/uzhgorod', 'Europe/Kyiv'],
+  ['europe/zaporozhye', 'Europe/Kyiv'],
+
+  // Atlantic
+  ['atlantic/faeroe', 'Atlantic/Faroe'],
+
+  // Pacific
+  ['pacific/ponape', 'Pacific/Pohnpei'],
+  ['pacific/truk', 'Pacific/Chuuk'],
+  ['pacific/yap', 'Pacific/Chuuk'],
+  ['pacific/enderbury', 'Pacific/Kanton'],
+  ['pacific/johnston', 'Pacific/Honolulu'],
+
+  // America
+  ['america/buenos_aires', 'America/Argentina/Buenos_Aires'],
+  ['america/catamarca', 'America/Argentina/Catamarca'],
+  ['america/cordoba', 'America/Argentina/Cordoba'],
+  ['america/jujuy', 'America/Argentina/Jujuy'],
+  ['america/mendoza', 'America/Argentina/Mendoza'],
+  ['america/porto_acre', 'America/Rio_Branco'],
+  ['america/rosario', 'America/Argentina/Cordoba'],
+  ['america/santa_isabel', 'America/Tijuana'],
+  ['america/virgin', 'America/St_Thomas'],
+  ['america/atka', 'America/Adak'],
+  ['america/ensenada', 'America/Tijuana'],
+  ['america/fort_wayne', 'America/Indiana/Indianapolis'],
+  ['america/indianapolis', 'America/Indiana/Indianapolis'],
+  ['america/knox_in', 'America/Indiana/Knox'],
+  ['america/louisville', 'America/Kentucky/Louisville'],
+  ['america/shiprock', 'America/Denver'],
+  ['america/montreal', 'America/Toronto'],
+  ['america/nipigon', 'America/Toronto'],
+  ['america/pangnirtung', 'America/Iqaluit'],
+  ['america/rainy_river', 'America/Winnipeg'],
+  ['america/thunder_bay', 'America/Toronto'],
+  ['america/yellowknife', 'America/Edmonton'],
+
+  // Africa
+  ['africa/asmera', 'Africa/Asmara'],
+  ['africa/timbuktu', 'Africa/Abidjan'],
+
+  // Antarctica
+  ['antarctica/south_pole', 'Pacific/Auckland'],
+
+  // Legacy abbreviations
+  ['us/alaska', 'America/Anchorage'],
+  ['us/aleutian', 'America/Adak'],
+  ['us/arizona', 'America/Phoenix'],
+  ['us/central', 'America/Chicago'],
+  ['us/east-indiana', 'America/Indiana/Indianapolis'],
+  ['us/eastern', 'America/New_York'],
+  ['us/hawaii', 'Pacific/Honolulu'],
+  ['us/indiana-starke', 'America/Indiana/Knox'],
+  ['us/michigan', 'America/Detroit'],
+  ['us/mountain', 'America/Denver'],
+  ['us/pacific', 'America/Los_Angeles'],
+  ['us/samoa', 'Pacific/Pago_Pago'],
+
+  // Other common aliases
+  ['gb', 'Europe/London'],
+  ['gb-eire', 'Europe/London'],
+  ['eire', 'Europe/Dublin'],
+  ['hongkong', 'Asia/Hong_Kong'],
+  ['iceland', 'Atlantic/Reykjavik'],
+  ['iran', 'Asia/Tehran'],
+  ['israel', 'Asia/Jerusalem'],
+  ['jamaica', 'America/Jamaica'],
+  ['japan', 'Asia/Tokyo'],
+  ['kwajalein', 'Pacific/Kwajalein'],
+  ['libya', 'Africa/Tripoli'],
+  ['poland', 'Europe/Warsaw'],
+  ['portugal', 'Europe/Lisbon'],
+  ['singapore', 'Asia/Singapore'],
+  ['turkey', 'Europe/Istanbul'],
+  ['roc', 'Asia/Taipei'],
+  ['rok', 'Asia/Seoul'],
+  ['w-su', 'Europe/Moscow'],
+  ['prc', 'Asia/Shanghai'],
+  ['egypt', 'Africa/Cairo'],
+  ['cuba', 'America/Havana'],
+
+  // Etc zones (some runtimes handle these inconsistently)
+  ['gmt', 'Etc/GMT'],
+  ['gmt+0', 'Etc/GMT'],
+  ['gmt-0', 'Etc/GMT'],
+  ['gmt0', 'Etc/GMT'],
+  ['greenwich', 'Etc/GMT'],
+  ['uct', 'Etc/UTC'],
+  ['utc', 'Etc/UTC'],
+  ['universal', 'Etc/UTC'],
+  ['zulu', 'Etc/UTC'],
+];
+
+let _ianaMap: ReadonlyMap<string, string> | null = null;
+let _canonicalNamesMap: ReadonlyMap<string, string> | null = null;
+let _runtimeSet: ReadonlySet<string> | null = null;
 
 /**
- * Mapping of non-canonical timezone names to their IANA canonical equivalents.
- * Keys are lowercase for case-insensitive lookup.
- *
- * Source: IANA Time Zone Database (https://www.iana.org/time-zones)
+ * Non-canonical → canonical IANA mappings. Keys lowercase.
+ * Lazily initialized.
  */
-export const ianaCanonicalMappingsLowerKeys: ReadonlyMap<string, string> =
-  new Map(
-    [
-      // Asia
-      ['Asia/Calcutta', 'Asia/Kolkata'],
-      ['Asia/Saigon', 'Asia/Ho_Chi_Minh'],
-      ['Asia/Katmandu', 'Asia/Kathmandu'],
-      ['Asia/Rangoon', 'Asia/Yangon'],
-      ['Asia/Chongqing', 'Asia/Shanghai'],
-      ['Asia/Chungking', 'Asia/Shanghai'],
-      ['Asia/Harbin', 'Asia/Shanghai'],
-      ['Asia/Kashgar', 'Asia/Urumqi'],
-      ['Asia/Dacca', 'Asia/Dhaka'],
-      ['Asia/Thimbu', 'Asia/Thimphu'],
-      ['Asia/Ujung_Pandang', 'Asia/Makassar'],
-      ['Asia/Ulan_Bator', 'Asia/Ulaanbaatar'],
-      ['Asia/Macao', 'Asia/Macau'],
-      ['Asia/Tel_Aviv', 'Asia/Jerusalem'],
-      ['Asia/Ashkhabad', 'Asia/Ashgabat'],
-
-      // Europe
-      ['Europe/Kiev', 'Europe/Kyiv'],
-      ['Europe/Uzhgorod', 'Europe/Kyiv'],
-      ['Europe/Zaporozhye', 'Europe/Kyiv'],
-
-      // Atlantic
-      ['Atlantic/Faeroe', 'Atlantic/Faroe'],
-
-      // Pacific
-      ['Pacific/Ponape', 'Pacific/Pohnpei'],
-      ['Pacific/Truk', 'Pacific/Chuuk'],
-      ['Pacific/Yap', 'Pacific/Chuuk'],
-      ['Pacific/Enderbury', 'Pacific/Kanton'],
-      ['Pacific/Johnston', 'Pacific/Honolulu'],
-
-      // America
-      ['America/Buenos_Aires', 'America/Argentina/Buenos_Aires'],
-      ['America/Catamarca', 'America/Argentina/Catamarca'],
-      ['America/Cordoba', 'America/Argentina/Cordoba'],
-      ['America/Jujuy', 'America/Argentina/Jujuy'],
-      ['America/Mendoza', 'America/Argentina/Mendoza'],
-      ['America/Porto_Acre', 'America/Rio_Branco'],
-      ['America/Rosario', 'America/Argentina/Cordoba'],
-      ['America/Santa_Isabel', 'America/Tijuana'],
-      ['America/Virgin', 'America/St_Thomas'],
-      ['America/Atka', 'America/Adak'],
-      ['America/Ensenada', 'America/Tijuana'],
-      ['America/Fort_Wayne', 'America/Indiana/Indianapolis'],
-      ['America/Indianapolis', 'America/Indiana/Indianapolis'],
-      ['America/Knox_IN', 'America/Indiana/Knox'],
-      ['America/Louisville', 'America/Kentucky/Louisville'],
-      ['America/Shiprock', 'America/Denver'],
-      ['America/Montreal', 'America/Toronto'],
-      ['America/Nipigon', 'America/Toronto'],
-      ['America/Pangnirtung', 'America/Iqaluit'],
-      ['America/Rainy_River', 'America/Winnipeg'],
-      ['America/Thunder_Bay', 'America/Toronto'],
-      ['America/Yellowknife', 'America/Edmonton'],
-
-      // Africa
-      ['Africa/Asmera', 'Africa/Asmara'],
-      ['Africa/Timbuktu', 'Africa/Abidjan'],
-
-      // Antarctica
-      ['Antarctica/South_Pole', 'Pacific/Auckland'],
-
-      // Legacy abbreviations
-      ['US/Alaska', 'America/Anchorage'],
-      ['US/Aleutian', 'America/Adak'],
-      ['US/Arizona', 'America/Phoenix'],
-      ['US/Central', 'America/Chicago'],
-      ['US/East-Indiana', 'America/Indiana/Indianapolis'],
-      ['US/Eastern', 'America/New_York'],
-      ['US/Hawaii', 'Pacific/Honolulu'],
-      ['US/Indiana-Starke', 'America/Indiana/Knox'],
-      ['US/Michigan', 'America/Detroit'],
-      ['US/Mountain', 'America/Denver'],
-      ['US/Pacific', 'America/Los_Angeles'],
-      ['US/Samoa', 'Pacific/Pago_Pago'],
-
-      // Other common aliases
-      ['GB', 'Europe/London'],
-      ['GB-Eire', 'Europe/London'],
-      ['Eire', 'Europe/Dublin'],
-      ['Hongkong', 'Asia/Hong_Kong'],
-      ['Iceland', 'Atlantic/Reykjavik'],
-      ['Iran', 'Asia/Tehran'],
-      ['Israel', 'Asia/Jerusalem'],
-      ['Jamaica', 'America/Jamaica'],
-      ['Japan', 'Asia/Tokyo'],
-      ['Kwajalein', 'Pacific/Kwajalein'],
-      ['Libya', 'Africa/Tripoli'],
-      ['Poland', 'Europe/Warsaw'],
-      ['Portugal', 'Europe/Lisbon'],
-      ['Singapore', 'Asia/Singapore'],
-      ['Turkey', 'Europe/Istanbul'],
-      ['ROC', 'Asia/Taipei'],
-      ['ROK', 'Asia/Seoul'],
-      ['W-SU', 'Europe/Moscow'],
-      ['PRC', 'Asia/Shanghai'],
-      ['Egypt', 'Africa/Cairo'],
-      ['Cuba', 'America/Havana'],
-
-      // Etc zones (some runtimes handle these inconsistently)
-      ['GMT', 'Etc/GMT'],
-      ['GMT+0', 'Etc/GMT'],
-      ['GMT-0', 'Etc/GMT'],
-      ['GMT0', 'Etc/GMT'],
-      ['Greenwich', 'Etc/GMT'],
-      ['UCT', 'Etc/UTC'],
-      ['UTC', 'Etc/UTC'],
-      ['Universal', 'Etc/UTC'],
-      ['Zulu', 'Etc/UTC'],
-    ].map(([key, value]) => [key.toLowerCase(), value] as const),
-  );
-
-/**
- * Base IANA canonical names (lowercase) — computed once from static mappings + runtime.
- */
-const baseIanaCanonicalNamesLowerCase: ReadonlySet<string> = new Set([
-  ...Array.from(new Set(ianaCanonicalMappingsLowerKeys.values())).map((tz) =>
-    tz.toLowerCase(),
-  ),
-  ...Intl.supportedValuesOf('timeZone')
-    .filter((tz) => !ianaCanonicalMappingsLowerKeys.has(tz.toLowerCase()))
-    .map((tz) => tz.toLowerCase()),
-]);
-
-/**
- * Merged set: base IANA canonical names + custom canonical names from config.
- * Rebuilt when config changes.
- */
-let canonicalNamesLowerCase: ReadonlySet<string> =
-  baseIanaCanonicalNamesLowerCase;
-
-function rebuildCanonicalNames(): void {
-  const { customCanonicalNamesLowerCase } = getConfig();
-  if (customCanonicalNamesLowerCase.size === 0) {
-    canonicalNamesLowerCase = baseIanaCanonicalNamesLowerCase;
-    return;
+export function getIanaMappings(): ReadonlyMap<string, string> {
+  if (!_ianaMap) {
+    _ianaMap = new Map(ianaCanonicalEntries);
   }
-  canonicalNamesLowerCase = new Set([
-    ...baseIanaCanonicalNamesLowerCase,
-    ...customCanonicalNamesLowerCase,
-  ]);
+  return _ianaMap;
 }
 
-onConfigChange(rebuildCanonicalNames);
-
 /**
- * Returns the merged set of canonical timezone names (lowercase).
- * Includes both IANA canonical names and custom canonical names from config.
+ * Runtime canonical timezone names (lowercase). Lazily initialized.
+ * Single source of truth for `Intl.supportedValuesOf('timeZone')`.
  */
-export function getCanonicalNamesLowerCase(): ReadonlySet<string> {
-  return canonicalNamesLowerCase;
+export function getRuntimeCanonicalSet(): ReadonlySet<string> {
+  if (!_runtimeSet) {
+    _runtimeSet = new Set(
+      Intl.supportedValuesOf('timeZone').map((tz) => tz.toLowerCase()),
+    );
+  }
+  return _runtimeSet;
 }
 
 /**
- * Returns the IANA canonical name for a given timezone, or the input if already canonical.
+ * Map of lowercase canonical name → properly cased canonical name.
+ * Merges IANA mapping targets + runtime Intl names. Lazily initialized.
+ */
+function getBaseCanonicalNamesMap(): ReadonlyMap<string, string> {
+  if (!_canonicalNamesMap) {
+    const mappings = getIanaMappings();
+    const map = new Map<string, string>();
+
+    // IANA mapping targets (proper casing from our static data)
+    for (const canonical of new Set(mappings.values())) {
+      map.set(canonical.toLowerCase(), canonical);
+    }
+
+    // Runtime Intl names (proper casing from Intl, skip those already covered by IANA)
+    for (const tz of Intl.supportedValuesOf('timeZone')) {
+      const lower = tz.toLowerCase();
+      if (!map.has(lower)) {
+        map.set(lower, tz);
+      }
+    }
+
+    _canonicalNamesMap = map;
+  }
+  return _canonicalNamesMap;
+}
+
+/**
+ * Builds the merged canonical names map for a given config.
+ * Returns Map<lowercase, ProperCase>.
+ */
+export function buildCanonicalNamesMap(
+  config: ResolvedConfig,
+): ReadonlyMap<string, string> {
+  const base = getBaseCanonicalNamesMap();
+  if (config.customCanonicalNamesLowerCase.size === 0) {
+    return base;
+  }
+  const merged = new Map(base);
+  for (const lowerName of config.customCanonicalNamesLowerCase) {
+    if (!merged.has(lowerName)) {
+      // Custom canonical names: use the original casing from customMappings values
+      const properCase = findCustomCanonicalProperCase(config, lowerName);
+      merged.set(lowerName, properCase ?? lowerName);
+    }
+  }
+  return merged;
+}
+
+function findCustomCanonicalProperCase(
+  config: ResolvedConfig,
+  lowerName: string,
+): string | undefined {
+  for (const value of config.customMappingsLowerKeys.values()) {
+    if (value.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Returns the properly-cased IANA canonical name for a given timezone.
  * Custom mappings take precedence over built-in mappings.
+ * The lowerTz parameter avoids redundant toLowerCase() calls.
  */
-export function getIanaCanonicalName(timezone: string): string | null {
-  const lowerTz = timezone.toLowerCase();
-
-  // Check custom mappings first (highest priority)
-  const customMapped = findCustomMapping(timezone);
-  if (customMapped) {
-    return customMapped;
-  }
-
-  // Check if it's a known non-canonical name
-  const mapped = ianaCanonicalMappingsLowerKeys.get(lowerTz);
+export function getIanaCanonicalName(
+  lowerTz: string,
+  config: ResolvedConfig,
+  canonicalNames: ReadonlyMap<string, string>,
+): string | null {
+  const mapped = getIanaMappings().get(lowerTz);
   if (mapped) {
     return mapped;
   }
 
-  // Check if it's already a canonical name
-  if (canonicalNamesLowerCase.has(lowerTz)) {
-    return timezone;
+  const properCased = canonicalNames.get(lowerTz);
+  if (properCased) {
+    return properCased;
   }
 
-  // Try to resolve via Intl as a fallback
+  // Fallback: resolve via Intl for unknown timezones
   try {
-    const formatter = Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    const formatter = Intl.DateTimeFormat(undefined, { timeZone: lowerTz });
     const resolved = formatter.resolvedOptions().timeZone;
-    const customResolvedMapped = findCustomMapping(resolved);
+    const resolvedLower = resolved.toLowerCase();
+    const customResolvedMapped = config.customMappingsLowerKeys.get(resolvedLower);
     if (customResolvedMapped) {
       return customResolvedMapped;
     }
-    return (
-      ianaCanonicalMappingsLowerKeys.get(resolved.toLowerCase()) ?? resolved
-    );
+    return getIanaMappings().get(resolvedLower) ?? resolved;
   } catch {
     return null;
   }

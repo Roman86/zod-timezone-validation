@@ -1,6 +1,8 @@
 # Zod Timezone Validation
 
 [![npm version](https://badge.fury.io/js/zod-timezone-validation.svg)](https://badge.fury.io/js/zod-timezone-validation)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/romanjs)
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-ea4aaa?logo=github-sponsors&logoColor=white)](https://github.com/sponsors/Roman86)
 
 
 A lightweight and robust Zod schema for validating [IANA](https://www.iana.org/time-zones) timezone strings, with flexible handling of canonical and non-canonical names.
@@ -13,25 +15,25 @@ This library leverages the native `Intl` API, ensuring that timezone validation 
     -   Strictly canonical names only.
     -   Allow valid, but non-canonical names.
     -   Transform non-canonical names to their canonical equivalents (e.g., `Asia/Calcutta` -> `Asia/Kolkata`).
+-   **Factory-based API**: Create isolated schema instances with `createTimezoneSchemas(options?)` — no global state, safe for concurrent use with different configs.
 -   **Configurable Canonical Mode**: Choose between runtime-based (`Intl`) or strict IANA canonical names (solves runtime-related discrepancies) for consistent cross-environment behavior.
 -   **Custom Mappings**: Override or extend timezone mappings for edge cases.
--   **Zero Dependencies**: Relies only on `zod` as a peer dependency.
+-   **Zero Dependencies**: Relies only on `zod` (v4+) as a peer dependency.
 -   **Lightweight**: No bundled timezone data, uses the environment's native `Intl` API.
 -   **Fully Typed**: Written in TypeScript with branded types for extra type safety.
 
-### Brief Overview of Exports
+### Exports
 
--   `CoercedCanonicalTimezoneSchema`: Validates a timezone and **transforms** it to its canonical form (e.g., `US/Eastern` becomes `America/New_York`). Infers a branded type `CanonicalTimezone`.
--   `CanonicalTimezoneSchema`: Ensures a timezone is **strictly** in its canonical form. Rejects valid but non-canonical names. Infers a branded type `CanonicalTimezone`.
--   `TimezoneSchema`: Validates any valid timezone, **allowing both canonical and non-canonical names** without transformation. Infers a branded type `Timezone`.
--   `configureTimezoneSchema(options)`: Configure global behavior (canonical mode, custom mappings).
--   `CanonicalTimezone`: The branded `string` type for a canonical timezone.
--   `Timezone`: The branded `string` type for any valid timezone.
+-   `createTimezoneSchemas(options?)`: Factory function that returns an object with three schemas:
+    -   `CoercedCanonicalTimezoneSchema`: Validates a timezone and **transforms** it to its canonical form (e.g., `US/Eastern` becomes `America/New_York`). Infers branded type `CanonicalTimezone`.
+    -   `CanonicalTimezoneSchema`: Ensures a timezone is **strictly** in its canonical form. Rejects valid but non-canonical names. Infers branded type `CanonicalTimezone`.
+    -   `TimezoneSchema`: Validates any valid timezone, **allowing both canonical and non-canonical names** without transformation. Infers branded type `Timezone`.
 -   `CanonicalMode`: Type for the canonical mode option (`'runtime'` | `'iana'`).
--   `ConfigureOptions`: Type for the configuration options object.
+-   `TimezoneSchemaOptions`: Type for the configuration options object.
 -   `TimezoneMapping`: Type for a custom mapping tuple `[nonCanonical, canonical]`.
-
-Using branded types provides extra type safety, ensuring that you don't accidentally assign a plain `string` where a validated timezone is expected. You can use the exported types in your function signatures and interfaces.
+-   `TimezoneSchemas`: Interface describing the object returned by `createTimezoneSchemas`.
+-   `CanonicalTimezone`: Branded `string` type for a canonical timezone.
+-   `Timezone`: Branded `string` type for any valid timezone.
 
 ### ❤️ Enjoying this package? Consider buying me a coffee as a token of appreciation!
 
@@ -50,18 +52,30 @@ or
 yarn add zod-timezone-validation
 ```
 
-**Note:** `zod` is a peer dependency and must be installed in your project.
+**Note:** `zod` v4+ is a peer dependency and must be installed in your project.
 
 ## Usage
 
-The library exports three pre-configured Zod schemas to cover the most common use cases.
+Create your schemas with `createTimezoneSchemas()` and destructure the ones you need:
+
+```typescript
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const {
+  CoercedCanonicalTimezoneSchema,
+  CanonicalTimezoneSchema,
+  TimezoneSchema,
+} = createTimezoneSchemas();
+```
 
 ### `CoercedCanonicalTimezoneSchema`
 
 This schema validates that a string is a valid IANA timezone. If a non-canonical name is provided, it automatically transforms it into its canonical equivalent.
 
 ```typescript
-import { CoercedCanonicalTimezoneSchema } from 'zod-timezone-validation';
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas();
 
 // Transforms non-canonical to canonical
 const result1 = CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta');
@@ -84,7 +98,9 @@ try {
 This schema ensures the provided string is a **strictly canonical** IANA timezone name. It will reject any valid but non-canonical names.
 
 ```typescript
-import { CanonicalTimezoneSchema } from 'zod-timezone-validation';
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const { CanonicalTimezoneSchema } = createTimezoneSchemas();
 
 // Accepts canonical names
 const result = CanonicalTimezoneSchema.parse('Europe/London');
@@ -100,10 +116,12 @@ try {
 
 ### `TimezoneSchema`
 
-This schema is more lenient and validates that a string is a valid IANA timezone, allowing both canonical and non-canonical names without transformation (use CoercedCanonicalTimezoneSchema if you need to transform).
+This schema is more lenient and validates that a string is a valid IANA timezone, allowing both canonical and non-canonical names without transformation.
 
 ```typescript
-import { TimezoneSchema } from 'zod-timezone-validation';
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const { TimezoneSchema } = createTimezoneSchemas();
 
 // Accepts canonical names
 const result1 = TimezoneSchema.parse('Australia/Sydney');
@@ -123,38 +141,42 @@ try {
 
 ## Configuration
 
+Pass options to `createTimezoneSchemas()` to customize behavior. Each call returns an independent set of schemas, so you can use different configurations side by side.
+
 ### Canonical Mode
 
 Different JavaScript runtimes (browsers, Node.js) may disagree on what constitutes a "canonical" timezone name. For example, Chromium-based browsers may consider `Asia/Calcutta` canonical, while Node.js and Firefox use `Asia/Kolkata`.
 
-To ensure consistent behavior across all environments, you can configure the library to use strict IANA canonical names:
+By default, the library uses strict IANA canonical names for consistent cross-environment behavior. You can opt into runtime mode if you prefer to follow the environment's `Intl` implementation:
 
 ```typescript
-import { configureTimezoneSchema, CoercedCanonicalTimezoneSchema } from 'zod-timezone-validation';
+import { createTimezoneSchemas } from 'zod-timezone-validation';
 
-// Use strict IANA canonical names (consistent across environments)
-configureTimezoneSchema({ canonicalMode: 'iana' });
+// Default: strict IANA canonical names (consistent across environments)
+const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas();
 
-// Now Asia/Calcutta will always become Asia/Kolkata, regardless of the runtime
+// Asia/Calcutta will always become Asia/Kolkata, regardless of the runtime
 const result = CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta');
 console.log(result); // => 'Asia/Kolkata'
 
-// Use runtime's Intl implementation (default, may vary by environment)
-configureTimezoneSchema({ canonicalMode: 'runtime' });
+// Opt into runtime's Intl implementation (may vary by environment)
+const { CoercedCanonicalTimezoneSchema: RuntimeSchema } = createTimezoneSchemas({
+  canonicalMode: 'runtime',
+});
 ```
 
 **Available modes:**
-- `'runtime'` (default): Uses the runtime's `Intl` implementation. Results may vary between environments.
-- `'iana'`: Uses strict IANA-compliant canonical names (`Intl` with conflicts resolution layer). Provides consistent behavior across all environments.
+- `'iana'` (default): Uses strict IANA-compliant canonical names (`Intl` with conflicts resolution layer). Provides consistent behavior across all environments.
+- `'runtime'`: Uses the runtime's `Intl` implementation. Results may vary between environments.
 
 ### Custom Mappings
 
 You can provide custom timezone mappings that override the built-in behavior. Mappings are defined as an array of case-insensitive tuples `[nonCanonicalName, canonicalName]`:
 
 ```typescript
-import { configureTimezoneSchema, CoercedCanonicalTimezoneSchema } from 'zod-timezone-validation';
+import { createTimezoneSchemas } from 'zod-timezone-validation';
 
-configureTimezoneSchema({
+const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas({
   // case-insensitive keys and values
   customMappings: [
     // Force a specific mapping
@@ -163,7 +185,7 @@ configureTimezoneSchema({
     ['my/customzone', 'America/New_York'],
     // Introduce a new timezone name (will be assumed valid and canonical)
     ['legacy/zone', 'My/New/Canonical'],
-  ]
+  ],
 });
 
 const result1 = CoercedCanonicalTimezoneSchema.parse('My/CustomZone');
@@ -177,6 +199,19 @@ console.log(result2); // => 'My/New/Canonical'
 - Keys (non-canonical names) are matched **case-insensitively**.
 - Values (canonical names) are treated as valid canonical names. If the value doesn't exist in the built-in canonical sets, it becomes a new valid canonical name.
 - Custom mappings take precedence over both IANA and runtime mappings.
+
+### Combining Options
+
+```typescript
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const { CoercedCanonicalTimezoneSchema, CanonicalTimezoneSchema } = createTimezoneSchemas({
+  canonicalMode: 'runtime',
+  customMappings: [
+    ['legacy/internal', 'America/Chicago'],
+  ],
+});
+```
 
 ## Getting a List of Timezones
 
@@ -193,7 +228,35 @@ console.log(availableTimezones);
 
 This approach ensures that you are working with the timezones supported by the user's runtime environment (browser or server), without needing to bundle a large, static list.
 
+## Migration from v1.x
+
+v2 replaces global mutable schemas with a factory function:
+
+```typescript
+// Before (v1.x)
+import {
+  CoercedCanonicalTimezoneSchema,
+  CanonicalTimezoneSchema,
+  TimezoneSchema,
+  configureTimezoneSchema,
+} from 'zod-timezone-validation';
+
+configureTimezoneSchema({ canonicalMode: 'iana' });
+CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta');
+
+// After (v2)
+import { createTimezoneSchemas } from 'zod-timezone-validation';
+
+const { CoercedCanonicalTimezoneSchema } = createTimezoneSchemas();
+CoercedCanonicalTimezoneSchema.parse('Asia/Calcutta');
+```
+
+**Breaking changes:**
+- `configureTimezoneSchema()` is removed — pass options to `createTimezoneSchemas()` instead.
+- Schemas are no longer global singletons — each `createTimezoneSchemas()` call returns independent instances.
+- Default canonical mode changed from `'runtime'` to `'iana'` for consistent cross-environment behavior.
+- Requires `zod` v4+.
+
 ## License
 
 This project is licensed under the MIT License.
-

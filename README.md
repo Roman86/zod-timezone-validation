@@ -1,5 +1,6 @@
 # Zod Timezone Validation
 
+[![NPM Downloads](https://img.shields.io/npm/dm/zod-timezone-validation)](https://www.npmjs.com/package/zod-timezone-validation)
 [![npm version](https://badge.fury.io/js/zod-timezone-validation.svg)](https://badge.fury.io/js/zod-timezone-validation)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/romanjs)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-ea4aaa?logo=github-sponsors&logoColor=white)](https://github.com/sponsors/Roman86)

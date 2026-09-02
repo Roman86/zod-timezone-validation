@@ -1,7 +1,7 @@
 {
   "name": "zod-timezone-validation",
   "version": "2.0.2",
-  "description": "Zod schemas for validating timezone strings, including non-canonical names.",
+  "description": "Zod schemas for validating IANA timezone strings: strictly canonical, non-canonical allowed, or coerced to canonical. Uses the native Intl API — zero dependencies, no bundled timezone database.",
   "author": "Roman Kozodoi",
   "license": "MIT",
   "repository": {
@@ -19,10 +19,18 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
+  },
+  "engines": {
+    "node": ">=18"
   },
   "files": [
     "dist"
@@ -37,26 +45,27 @@
     "format": "biome format --write ./src"
   },
   "keywords": [
-    "IANA timezone",
-    "IANA timezone database",
-    "tz database",
-    "Zod schema",
-    "timezone validation",
-    "canonical timezone names",
-    "non-canonical timezone names",
-    "data validation",
-    "JavaScript",
-    "TypeScript",
-    "date-time handling"
+    "zod",
+    "zod-schema",
+    "timezone",
+    "timezones",
+    "iana",
+    "iana-timezone",
+    "tz",
+    "tz-database",
+    "timezone-validation",
+    "canonical",
+    "intl",
+    "validation",
+    "typescript"
   ],
   "peerDependencies": {
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "latest",
+    "@biomejs/biome": "^2.3.6",
     "@types/jest": "^29.5.12",
     "jest": "^29.7.0",
-    "jest-util": "^30.3.0",
     "ts-jest": "^29.2.3",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",

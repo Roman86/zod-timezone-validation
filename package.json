@@ -1,6 +1,6 @@
 {
   "name": "zod-timezone-validation",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Zod schemas for validating IANA timezone strings: strictly canonical, non-canonical allowed, or coerced to canonical. Uses the native Intl API — zero dependencies, no bundled timezone database.",
   "author": "Roman Kozodoi",
   "license": "MIT",
